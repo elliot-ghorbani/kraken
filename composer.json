@@ -1,0 +1,16 @@
+{
+  "name": "elliot-ghorbani/php-load-balancer",
+  "description": "A simple PHP load balancer using Swoole with sticky sessions, health checks, and hot config reload.",
+  "type": "project",
+  "require": {
+    "php": "^8.4",
+    "ext-swoole": "*",
+    "ext-pcntl": "*",
+    "vlucas/phpdotenv": "^5.6.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "LoadBalancer\\": "src/"
+    }
+  }
+}
