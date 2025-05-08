@@ -81,36 +81,40 @@ $swooleServer->on("request", function (Request $request, Response $response) use
 
     [$target, $index] = $loadBalancer->getServer($stickyCookie ?? $clientIp);
 
-    $cli = new Client($target['host'], $target['port']);
-    $cli->set(['timeout' => 3]);
-    $cli->setMethod($request->server['request_method']);
-    $cli->setHeaders($request->header ?? []);
-    $cli->setData($request->rawContent());
-    $cli->execute($request->server['request_uri']);
+    $loadBalancer->connections[$index]++;
 
-    if ($cli->errCode) {
+    $client = new Client($target['host'], $target['port']);
+    $client->set(['timeout' => 3]);
+    $client->setMethod($request->server['request_method']);
+    $client->setHeaders($request->header ?? []);
+    $client->setData($request->rawContent());
+    $client->execute($request->server['request_uri']);
+
+    $loadBalancer->connections[$index]--;
+
+    if ($client->errCode) {
         $response->status(502);
         $response->end("Bad Gateway");
 
-        $logger->error("Failed to proxy to {$target['host']}:{$target['port']}: {$cli->errMsg}");
+        $logger->error("Failed to proxy to {$target['host']}:{$target['port']}: {$client->errMsg}");
 
         return;
     }
 
-    $response->status($cli->statusCode);
+    $response->status($client->statusCode);
 
     $skipHeaders = ['transfer-encoding'];
 
-    foreach ($cli->headers ?? [] as $key => $val) {
+    foreach ($client->headers ?? [] as $key => $val) {
         if (!in_array(strtolower($key), $skipHeaders)) {
             $response->header($key, $val);
         }
     }
 
     $response->cookie('LBSESSION', (string)$index, time() + 600);
-    $response->end($cli->body);
+    $response->end($client->body);
 
-    $cli->close();
+    $client->close();
 
     $logger->access($request->server);
 });

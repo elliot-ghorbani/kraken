@@ -17,7 +17,13 @@ class HealthChecker {
                 $cli->set(['timeout' => 1]);
                 $cli->get($server['health_check_path']);
 
-                $balancer->healthStatus[$i] = $cli->statusCode === 200;
+                $isHealthy = $cli->statusCode === 200;
+
+                $balancer->healthStatus[$i] = $isHealthy;
+
+                if (!$isHealthy) {
+                    $balancer->connections[$i] = 0;
+                }
 
                 $cli->close();
             });

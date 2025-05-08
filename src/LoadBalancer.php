@@ -22,10 +22,10 @@ class LoadBalancer
     {
         $this->servers = $servers;
         $this->strategy = $strategy;
-        $this->weights = array_fill(0, count($servers), 1);
-        $this->connections = array_fill(0, count($servers), 0);
-        $this->responseTimes = array_fill(0, count($servers), 50);
         $this->healthStatus = array_fill(0, count($servers), true);
+        $this->connections = array_fill(0, count($servers), 0);
+        $this->weights = array_fill(0, count($servers), 1);
+        $this->responseTimes = array_fill(0, count($servers), 50);
     }
 
     private function getHealthyServers(): array
@@ -58,13 +58,17 @@ class LoadBalancer
                 break;
             case 'least_conn':
                 $healthyIndexes = array_keys($healthyServers);
-                $min = PHP_INT_MAX;
-                foreach ($healthyIndexes as $i) {
-                    if ($this->connections[$i] < $min) {
-                        $min = $this->connections[$i];
-                        $this->lastIndex = $i;
-                    }
-                }
+
+                $healthyServersConnections = array_filter(
+                    $this->connections,
+                    function ($serverIndex) use ($healthyIndexes) {
+                        return in_array($serverIndex, $healthyIndexes);
+                    },
+                    ARRAY_FILTER_USE_KEY
+                );
+
+                $this->lastIndex = array_search(min($healthyServersConnections), $healthyServersConnections);
+
                 break;
             case 'ip_hash':
                 $this->lastIndex = crc32($clientId ?? 'default') % count($healthyServers);
