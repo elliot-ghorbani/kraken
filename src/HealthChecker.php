@@ -1,10 +1,12 @@
 <?php
+
 namespace LoadBalancer;
 
 use Swoole\Coroutine;
 use Swoole\Coroutine\Http\Client;
 
-class HealthChecker {
+class HealthChecker
+{
     public function check(LoadBalancer $balancer): void
     {
         foreach ($balancer->servers as $i => $server) {

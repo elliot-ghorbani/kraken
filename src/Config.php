@@ -1,7 +1,9 @@
 <?php
+
 namespace LoadBalancer;
 
-class Config {
+class Config
+{
     public int $appPort;
     public int $workerNum;
     public array $servers;
@@ -19,7 +21,9 @@ class Config {
     private function loadConfig(): void
     {
         $configs = json_decode(
-            file_get_contents(__DIR__ . '/../config/config.json'), true, flags: JSON_THROW_ON_ERROR
+            file_get_contents(__DIR__ . '/../config/config.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR
         );
 
         $this->workerNum = $configs['worker_num'] ?? swoole_cpu_num();
@@ -38,7 +42,7 @@ class Config {
                 ?? '$remote_addr - $host "$request_method $request_uri" $status $request_time "$http_user_agent"';
         }
     }
-    
+
     public function updateConfig(LoadBalancer $loadBalancer, Logger $logger): void
     {
         $loadBalancer->updateConfig($this->servers, $this->strategy);

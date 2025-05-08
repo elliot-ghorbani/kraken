@@ -33,7 +33,7 @@ $swooleServer->set([
 $swooleServer->on("start", function (Server $server) use ($config) {
     echo "PHP Load Balancer running at http://127.0.0.1:8080\n";
 
-    Process::signal(SIGINT, function() use ($server) {
+    Process::signal(SIGINT, function () use ($server) {
         echo "Shutting down gracefully...\n";
         $server->shutdown();
     });

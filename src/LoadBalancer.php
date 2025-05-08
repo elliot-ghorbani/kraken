@@ -30,7 +30,7 @@ class LoadBalancer
 
     private function getHealthyServers(): array
     {
-        return array_filter($this->servers, fn($_, $i) => $this->healthStatus[$i], ARRAY_FILTER_USE_BOTH);
+        return array_filter($this->servers, fn ($_, $i) => $this->healthStatus[$i], ARRAY_FILTER_USE_BOTH);
     }
 
     public function getServer(?string $clientId = null): array
@@ -44,8 +44,8 @@ class LoadBalancer
         $strategy = $this->strategy;
 
         if ($strategy === 'sticky' && is_numeric(
-                $clientId
-            ) && isset($healthyServers[$clientId]) && $this->healthStatus[$clientId]) {
+            $clientId
+        ) && isset($healthyServers[$clientId]) && $this->healthStatus[$clientId]) {
             return [$healthyServers[$clientId], $clientId];
         }
 
