@@ -1,4 +1,4 @@
-# PHP Load Balancer
+# Kraken, a PHP Swoole Load Balancer
 
 A lightweight load balancer written in pure PHP using Swoole. Supports sticky sessions, round robin, least connections, and more.
 

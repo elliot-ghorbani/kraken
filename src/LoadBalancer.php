@@ -2,83 +2,144 @@
 
 namespace LoadBalancer;
 
+use Swoole\Table;
+
 class LoadBalancer
 {
-    public array $servers;
-    public array $weights = [];
-    public array $connections = [];
-    public array $responseTimes = [];
-    public array $healthStatus = [];
-    public int $lastIndex = -1;
-    public int $currentWeight = 0;
-    public string $strategy;
+    public const string STRATEGY_RANDOM = 'random';
+    public const string STRATEGY_LEAST_CONNECTION = 'least_conn';
+    public const string STRATEGY_WEIGHTED_LEAST_CONNECTION = 'weighted_least_conn';
+    public const string STRATEGY_ROUND_ROBIN = 'round_robin';
+    public const string STRATEGY_WEIGHTED_ROUND_ROBIN = 'weighted_round_robin';
+    public const string STRATEGY_LEAST_RESPONSE_TIME = 'least_response_time';
+    public const string STRATEGY_WEIGHTED_LEAST_RESPONSE_TIME = 'weighted_least_response_time';
+    public const string STRATEGY_STICKY = 'sticky';
+    public const string STRATEGY_IP_HASH = 'ip_hash';
 
-    public function __construct(array $servers, string $strategy)
+    private Table $serversTable;
+    private Table $globalTable;
+    private string $strategy;
+    private array $healthyServers = [];
+
+    public function __construct(Table $serversTable, Table $globalTable, string $strategy)
     {
-        $this->updateConfig($servers, $strategy);
+        $this->serversTable = $serversTable;
+        $this->globalTable = $globalTable;
+
+        $this->updateConfig($strategy);
     }
 
-    public function updateConfig(array $servers, string $strategy): void
+    public function updateConfig(string $strategy): void
     {
-        $this->servers = $servers;
         $this->strategy = $strategy;
-        $this->healthStatus = array_fill(0, count($servers), true);
-        $this->connections = array_fill(0, count($servers), 0);
-        $this->weights = array_fill(0, count($servers), 1);
-        $this->responseTimes = array_fill(0, count($servers), 50);
-    }
-
-    private function getHealthyServers(): array
-    {
-        return array_filter($this->servers, fn ($_, $i) => $this->healthStatus[$i], ARRAY_FILTER_USE_BOTH);
     }
 
     public function getServer(?string $clientId = null): array
     {
-        $healthyServers = $this->getHealthyServers();
+        $this->setHealthyServers();
 
-        if (empty($healthyServers)) {
-            return [$this->servers[0], 0];
+        // do something here
+        if (empty($this->healthyServers)) {
+            return [$this->serversTable[0], 0];
         }
 
-        $strategy = $this->strategy;
+        $index = match ($this->strategy) {
+            self::STRATEGY_RANDOM => $this->random(),
+            self::STRATEGY_STICKY => $this->sticky(),
+            self::STRATEGY_ROUND_ROBIN => $this->roundRobin(),
+            self::STRATEGY_WEIGHTED_ROUND_ROBIN => $this->weightedRoundRobin(),
+            self::STRATEGY_LEAST_RESPONSE_TIME => $this->leastResponseTime(),
+            self::STRATEGY_WEIGHTED_LEAST_RESPONSE_TIME => $this->weightedLeastResponseTime(),
+            self::STRATEGY_LEAST_CONNECTION => $this->leastConnection(),
+            self::STRATEGY_WEIGHTED_LEAST_CONNECTION => $this->weightedLeastConnection(),
+            self::STRATEGY_IP_HASH => $this->ipHash(),
+            default => array_key_first($this->healthyServers),
+        };
 
-        if ($strategy === 'sticky' && is_numeric(
-            $clientId
-        ) && isset($healthyServers[$clientId]) && $this->healthStatus[$clientId]) {
-            return [$healthyServers[$clientId], $clientId];
+        $this->globalTable->set(0, ['last_index' => $index]);
+
+        return [$this->healthyServers[$index], $index];
+    }
+
+    private function setHealthyServers(): void
+    {
+        foreach ($this->serversTable as $key => $item) {
+            if (!$item['is_healthy']) {
+                continue;
+            }
+
+            $this->healthyServers[$key] = $item;
         }
+    }
 
-        switch ($strategy) {
-            case 'round_robin':
-                $this->lastIndex = ($this->lastIndex + 1) % count($healthyServers);
-                break;
-            case 'random':
-                $this->lastIndex = array_rand($healthyServers);
-                break;
-            case 'least_conn':
-                $healthyIndexes = array_keys($healthyServers);
+    private function random(): int
+    {
+        return array_rand($this->healthyServers);
+    }
 
-                $healthyServersConnections = array_filter(
-                    $this->connections,
-                    function ($serverIndex) use ($healthyIndexes) {
-                        return in_array($serverIndex, $healthyIndexes);
-                    },
-                    ARRAY_FILTER_USE_KEY
-                );
+    private function sticky(): int
+    {
+        // to be developed
 
-                $this->lastIndex = array_search(min($healthyServersConnections), $healthyServersConnections);
+        return 0;
+    }
 
-                break;
-            case 'ip_hash':
-                $this->lastIndex = crc32($clientId ?? 'default') % count($healthyServers);
-                break;
-            default:
-                $this->lastIndex = 0;
-        }
+    private function ipHash(): int
+    {
+        // to be developed
 
-        $index = $this->lastIndex;
+        return 0;
+    }
 
-        return [$healthyServers[$index], $index];
+    private function roundRobin(): int
+    {
+        $lastIndex = array_key_first($this->healthyServers);
+
+        if ($global = $this->globalTable->get(0)) {
+            $globalLastIndex = $global['last_index'];
+
+            if (isset($this->healthyServers[$globalLastIndex])) {
+                $lastIndex = $globalLastIndex + 1;
+            }
+        };
+
+        return $lastIndex % count($this->healthyServers);
+    }
+
+    private function weightedRoundRobin(): int
+    {
+        // to be developed
+
+        return 0;
+    }
+
+    private function leastConnection(): int
+    {
+        uasort($this->healthyServers, function (array $a, array $b) {
+            return $a['connections'] <=> $b['connections'];
+        });
+
+        return array_key_first($this->healthyServers);
+    }
+
+    private function weightedLeastConnection(): int
+    {
+        // to be developed
+
+        return 0;
+    }
+
+    private function leastResponseTime(): int
+    {
+        // to be developed
+
+        return 0;
+    }
+
+    private function weightedLeastResponseTime(): int
+    {
+        // to be developed
+
+        return 0;
     }
 }

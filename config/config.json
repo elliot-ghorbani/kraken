@@ -4,12 +4,20 @@
     {
       "host": "127.0.0.1",
       "port": "8003",
-      "health_check_path": "/health"
+      "health_check_path": "/health",
+      "weight": 10
     },
     {
       "host": "127.0.0.1",
       "port": "8004",
-      "health_check_path": "/health"
+      "health_check_path": "/health",
+      "weight": 3
+    },
+    {
+      "host": "127.0.0.1",
+      "port": "8005",
+      "health_check_path": "/health",
+      "weight": 1
     }
   ],
   "strategy": "round_robin",

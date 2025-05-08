@@ -4,28 +4,32 @@ namespace LoadBalancer;
 
 use Swoole\Coroutine;
 use Swoole\Coroutine\Http\Client;
+use Swoole\Table;
 
 class HealthChecker
 {
-    public function check(LoadBalancer $balancer): void
+    public function check(Table $table): void
     {
-        foreach ($balancer->servers as $i => $server) {
-            if (!isset($server['health_check_path'])) {
+        /** @var Server $server */
+        foreach ($table as $key => $server) {
+            if (empty($server['health_check_path'])) {
                 return;
             }
 
-            Coroutine::create(function () use ($balancer, $i, $server) {
+            Coroutine::create(function () use ($server, $table, $key) {
                 $cli = new Client($server['host'], $server['port']);
                 $cli->set(['timeout' => 1]);
                 $cli->get($server['health_check_path']);
 
-                $isHealthy = $cli->statusCode === 200;
+                $isHealthy = (int)$cli->statusCode === 200;
 
-                $balancer->healthStatus[$i] = $isHealthy;
+                $server['is_healthy'] = $isHealthy;
 
                 if (!$isHealthy) {
-                    $balancer->connections[$i] = 0;
+                    $server['connections'] = 0;
                 }
+
+                $table->set($key, $server);
 
                 $cli->close();
             });

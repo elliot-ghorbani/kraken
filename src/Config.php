@@ -4,9 +4,8 @@ namespace LoadBalancer;
 
 class Config
 {
-    public int $appPort;
     public int $workerNum;
-    public array $servers;
+    public ServerCollection $servers;
     public string $strategy;
     public string $accessLogPath;
     public string $accessLogFormat;
@@ -27,7 +26,12 @@ class Config
         );
 
         $this->workerNum = $configs['worker_num'] ?? swoole_cpu_num();
-        $this->servers = $configs['servers'];
+
+        $this->servers = new ServerCollection();
+        foreach ($configs['servers'] ?? [] as $item) {
+            $this->servers->add(new Server($item));
+        }
+
         $this->strategy = $configs['strategy'] ?? 'round_robin';
 
         if (isset($configs['access_log'])) {
@@ -45,7 +49,7 @@ class Config
 
     public function updateConfig(LoadBalancer $loadBalancer, Logger $logger): void
     {
-        $loadBalancer->updateConfig($this->servers, $this->strategy);
+        $loadBalancer->updateConfig($this->strategy);
         $logger->updateConfig($this->accessLogPath, $this->errorLogPath, $this->accessLogFormat, $this->errorLogFormat);
     }
 }
