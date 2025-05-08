@@ -18,7 +18,7 @@ A lightweight load balancer written in pure PHP using Swoole. Supports sticky se
 
 ## Installation
 ```bash
-git clone https://github.com/elliot-ghorbani/php-load-balancer.git
+git clone https://github.com/elliot-ghorbani/kraken.git
 cd php-load-balancer
 composer install
 cp .env.example .env
