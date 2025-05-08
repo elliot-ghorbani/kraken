@@ -13,9 +13,15 @@ use Swoole\Http\Server;
 use Swoole\Process;
 use Swoole\Timer;
 
-$config = new Config();
+try {
+    $config = new Config();
+} catch (\Throwable $e) {
+    echo 'Loading config failed...' . PHP_EOL . $e->getMessage();
 
-$swooleServer = new Server("127.0.0.1", $config->appPort);
+    die();
+}
+
+$swooleServer = new Server("127.0.0.1", 8080);
 $loadBalancer = new LoadBalancer($config->servers, $config->strategy);
 $logger = new Logger($config->accessLogPath, $config->errorLogPath, $config->accessLogFormat, $config->errorLogFormat);
 
@@ -25,7 +31,7 @@ $swooleServer->set([
 ]);
 
 $swooleServer->on("start", function (Server $server) use ($config) {
-    echo "PHP Load Balancer running at http://127.0.0.1:$config->appPort\n";
+    echo "PHP Load Balancer running at http://127.0.0.1:8080\n";
 
     Process::signal(SIGINT, function() use ($server) {
         echo "Shutting down gracefully...\n";
@@ -33,28 +39,32 @@ $swooleServer->on("start", function (Server $server) use ($config) {
     });
 });
 
-$envFile = __DIR__ . '/../.env';
-$lastMtime = filemtime($envFile);
+$configFile = __DIR__ . '/../config/config.json';
+$lastMtime = filemtime($configFile);
 
-$swooleServer->on("WorkerStart", function (Server $server, int $workerId) use (&$loadBalancer, &$logger, &$lastMtime, $envFile) {
+$swooleServer->on("WorkerStart", function (Server $server, int $workerId) use (&$loadBalancer, &$logger, &$lastMtime, $configFile) {
     Process::signal(SIGINT, function () {
         echo "Worker received SIGINT, exiting...\n";
         exit(0);
     });
 
     // hot config reload
-    Timer::tick(1000, function () use (&$loadBalancer, &$logger, &$lastMtime, $envFile) {
-        clearstatcache(true, $envFile);
-        $mtime = filemtime($envFile);
+    Timer::tick(1000, function () use (&$loadBalancer, &$logger, &$lastMtime, $configFile) {
+        clearstatcache(true, $configFile);
+        $mtime = filemtime($configFile);
 
         if ($mtime === $lastMtime) {
             return;
         }
 
-        echo "Reloading .env config...\n";
+        echo "Reloading config...\n";
         $lastMtime = $mtime;
 
-        new Config()->updateConfig($loadBalancer, $logger);
+        try {
+            new Config()->updateConfig($loadBalancer, $logger);
+        } catch (\Throwable $e) {
+            echo 'Reloading config failed...' . PHP_EOL . $e->getMessage();
+        }
     });
 
     // health check
@@ -70,9 +80,8 @@ $swooleServer->on("request", function (Request $request, Response $response) use
     $stickyCookie = $request->cookie['LBSESSION'] ?? null;
 
     [$target, $index] = $loadBalancer->getServer($stickyCookie ?? $clientIp);
-    [$host, $port] = explode(':', $target);
 
-    $cli = new Client($host, (int)$port);
+    $cli = new Client($target['host'], $target['port']);
     $cli->set(['timeout' => 3]);
     $cli->setMethod($request->server['request_method']);
     $cli->setHeaders($request->header ?? []);
@@ -83,14 +92,13 @@ $swooleServer->on("request", function (Request $request, Response $response) use
         $response->status(502);
         $response->end("Bad Gateway");
 
-        $logger->error("Failed to proxy to $target: {$cli->errMsg}");
+        $logger->error("Failed to proxy to {$target['host']}:{$target['port']}: {$cli->errMsg}");
 
         return;
     }
 
     $response->status($cli->statusCode);
 
-//    $skipHeaders = ['content-length', 'transfer-encoding', 'connection'];
     $skipHeaders = ['transfer-encoding'];
 
     foreach ($cli->headers ?? [] as $key => $val) {
