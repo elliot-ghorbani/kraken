@@ -1,0 +1,24 @@
+{
+  "worker_num": 3,
+  "servers": [
+    {
+      "host": "127.0.0.1",
+      "port": "8003",
+      "health_check_path": "/health"
+    },
+    {
+      "host": "127.0.0.1",
+      "port": "8004",
+      "health_check_path": "/health"
+    }
+  ],
+  "strategy": "round_robin",
+  "access_log": {
+    "path": "/tmp/php_lb_access.log",
+    "format": "$remote_addr - $host \"$request_method $request_uri\" $status $request_time \"$http_user_agent\""
+  },
+  "error_log": {
+    "path": "/tmp/php_lb_error.log",
+    "format": "[$time_local] [error] $message"
+  }
+}
