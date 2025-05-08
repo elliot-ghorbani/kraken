@@ -1,9 +1,6 @@
 ![KrakenTide Logo](https://raw.githubusercontent.com/elliot-ghorbani/kraken_tide/main/.github/images/logo.jpg)
 # KrakenTide, a PHP Swoole Load Balancer
 
-
-# KrakenTide, a PHP Swoole Load Balancer
-
 A lightweight load balancer written in pure PHP using Swoole. Supports sticky sessions, round robin, least connections, and more.
 
 ## Features
