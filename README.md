@@ -19,7 +19,7 @@ git clone https://github.com/elliot-ghorbani/php-load-balancer.git
 cd php-load-balancer
 composer install
 cp .env.example .env
-php public/server.php
+php public/app.php
 ```
 
 ## License
