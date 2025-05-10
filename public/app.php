@@ -18,6 +18,7 @@ $serversTable = new Table(1024);
 $serversTable->column('host', Table::TYPE_STRING, 64);
 $serversTable->column('health_check_path', Table::TYPE_STRING, 64);
 $serversTable->column('port', Table::TYPE_INT, 2);
+$serversTable->column('ssl', Table::TYPE_INT, 1);
 $serversTable->column('weight', Table::TYPE_INT, 2);
 $serversTable->column('is_healthy', Table::TYPE_INT, 1);
 $serversTable->column('connections', Table::TYPE_INT, 4);
@@ -38,6 +39,7 @@ try {
             [
                 'host' => $server->getHost(),
                 'port' => $server->getPort(),
+                'ssl' => $server->isSsl(),
                 'health_check_path' => $server->getHealthCheckPath(),
                 'weight' => $server->getWeight(),
                 'is_healthy' => $server->isHealthy(),
@@ -97,6 +99,7 @@ $swooleServer->on("start", function (Server $server) use ($serversTable, &$loadB
                     [
                         'host' => $server->getHost(),
                         'port' => $server->getPort(),
+                        'ssl' => $server->isSsl(),
                         'health_check_path' => $server->getHealthCheckPath(),
                         'weight' => $server->getWeight(),
                         'is_healthy' => $server->isHealthy(),
@@ -139,8 +142,7 @@ $swooleServer->on("request", function (Request $request, Response $response) use
 
     $serversTable->incr($index, 'connections');
 
-    $client = new Client($target['host'], $target['port']);
-    $client->set(['timeout' => 3]);
+    $client = new Client($target['host'], $target['port'], $target['ssl']);
     $client->setMethod($request->server['request_method']);
     $client->setHeaders($request->header ?? []);
     $client->setData($request->rawContent());
