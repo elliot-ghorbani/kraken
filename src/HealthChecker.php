@@ -1,6 +1,6 @@
 <?php
 
-namespace LoadBalancer;
+namespace KrakenTide;
 
 use Swoole\Coroutine;
 use Swoole\Coroutine\Http\Client;
@@ -23,7 +23,7 @@ class HealthChecker
 
                 $isHealthy = (int)$cli->statusCode === 200;
 
-                $server['is_healthy'] = $isHealthy;
+                $server['is_healthy'] = (int)$isHealthy;
 
                 if (!$isHealthy) {
                     $server['connections'] = 0;

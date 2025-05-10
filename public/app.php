@@ -2,47 +2,36 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use LoadBalancer\Config;
-use LoadBalancer\HealthChecker;
-use LoadBalancer\LoadBalancer;
-use LoadBalancer\Logger;
+use KrakenTide\App;
+use KrakenTide\Config;
+use KrakenTide\HealthChecker;
+use KrakenTide\LoadBalancer;
+use KrakenTide\Logger;
 use Swoole\Coroutine\Http\Client;
-use Swoole\Http\Response;
 use Swoole\Http\Request;
+use Swoole\Http\Response;
 use Swoole\Http\Server;
 use Swoole\Process;
-use Swoole\Table;
 use Swoole\Timer;
 
-$serversTable = new Table(1024);
-$serversTable->column('host', Table::TYPE_STRING, 64);
-$serversTable->column('health_check_path', Table::TYPE_STRING, 64);
-$serversTable->column('port', Table::TYPE_INT, 2);
-$serversTable->column('ssl', Table::TYPE_INT, 1);
-$serversTable->column('weight', Table::TYPE_INT, 2);
-$serversTable->column('is_healthy', Table::TYPE_INT, 1);
-$serversTable->column('connections', Table::TYPE_INT, 4);
-$serversTable->column('response_times', Table::TYPE_INT, 4);
-$serversTable->create();
-
-$globalTable = new Table(1024);
-$globalTable->column('last_index', Table::TYPE_INT, 4);
-$globalTable->create();
+$app = App::getInstance();
+$serversTable = $app->getServersTable();
+$globalTable = $app->getGlobalTable();
 
 try {
     $config = new Config();
 
-    /** @var \LoadBalancer\Server $server */
+    /** @var \KrakenTide\Server $server */
     foreach ($config->servers as $key => $server) {
         $serversTable->set(
             $key,
             [
                 'host' => $server->getHost(),
                 'port' => $server->getPort(),
-                'ssl' => $server->isSsl(),
+                'ssl' => (int)$server->isSsl(),
                 'health_check_path' => $server->getHealthCheckPath(),
                 'weight' => $server->getWeight(),
-                'is_healthy' => $server->isHealthy(),
+                'is_healthy' => (int)$server->isHealthy(),
                 'connections' => $server->getConnections(),
                 'response_times' => $server->getResponseTimes(),
             ]
@@ -99,10 +88,10 @@ $swooleServer->on("start", function (Server $server) use ($serversTable, &$loadB
                     [
                         'host' => $server->getHost(),
                         'port' => $server->getPort(),
-                        'ssl' => $server->isSsl(),
+                        'ssl' => (int)$server->isSsl(),
                         'health_check_path' => $server->getHealthCheckPath(),
                         'weight' => $server->getWeight(),
-                        'is_healthy' => $server->isHealthy(),
+                        'is_healthy' => (int)$server->isHealthy(),
                         'connections' => $server->getConnections(),
                         'response_times' => $server->getResponseTimes(),
                     ]

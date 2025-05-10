@@ -1,6 +1,6 @@
 <?php
 
-namespace LoadBalancer;
+namespace KrakenTide;
 
 use Countable;
 use IteratorAggregate;

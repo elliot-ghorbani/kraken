@@ -1,6 +1,6 @@
 <?php
 
-namespace LoadBalancer;
+namespace KrakenTide;
 
 class Server
 {
