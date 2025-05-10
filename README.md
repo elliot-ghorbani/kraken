@@ -16,8 +16,8 @@ A lightweight load balancer written in pure PHP using Swoole. Supports sticky se
 
 ## Installation
 ```bash
-git clone https://github.com/elliot-ghorbani/kraken_tide.git
-cd php-load-balancer
+git clone https://github.com/elliot-ghorbani/kraken-tide.git
+cd kraken-tide
 composer install
 cp .env.example .env
 php public/app.php
