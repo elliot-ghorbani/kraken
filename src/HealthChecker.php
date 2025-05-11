@@ -8,15 +8,22 @@ use Swoole\Table;
 
 class HealthChecker
 {
-    public function check(Table $table): void
+    protected Table $serversTable;
+
+    public function __construct(Table $table)
+    {
+        $this->serversTable = $table;
+    }
+
+    public function check(): void
     {
         /** @var Server $server */
-        foreach ($table as $key => $server) {
+        foreach ($this->serversTable as $key => $server) {
             if (empty($server['health_check_path'])) {
                 return;
             }
 
-            Coroutine::create(function () use ($server, $table, $key) {
+            Coroutine::create(function () use ($server, $key) {
                 $cli = new Client($server['host'], $server['port']);
                 $cli->set(['timeout' => 1]);
                 $cli->get($server['health_check_path']);
@@ -29,7 +36,7 @@ class HealthChecker
                     $server['connections'] = 0;
                 }
 
-                $table->set($key, $server);
+                $this->serversTable->set($key, $server);
 
                 $cli->close();
             });

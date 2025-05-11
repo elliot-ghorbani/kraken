@@ -12,12 +12,7 @@ class Config
     public string $errorLogPath;
     public string $errorLogFormat;
 
-    public function __construct()
-    {
-        $this->loadConfig();
-    }
-
-    private function loadConfig(): void
+    public function loadConfig(): void
     {
         $configs = json_decode(
             file_get_contents(__DIR__ . '/../config/config.json'),
