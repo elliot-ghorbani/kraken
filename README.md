@@ -23,5 +23,11 @@ cp .env.example .env
 php public/app.php
 ```
 
+## Configuration
+Change the config.json file:
+- worker_num: Number of workers | nullable | Default Value: number of cpu cores
+- servers: Backend Servers | Array of Objects | Parameters: host, port, health_check_path (optional), ssl, weight
+- strategy: Load Balancer Strategy | One of : random, least_conn, weighted_least_conn, round_robin, weighted_round_robin, least_response_time, weighted_least_response_time, sticky, ip_hash
+
 ## License
 MIT

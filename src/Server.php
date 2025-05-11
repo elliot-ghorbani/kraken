@@ -57,7 +57,7 @@ class Server
         return $this->connections;
     }
 
-    public function getResponseTimes(): int
+    public function getResponseTime(): int
     {
         return $this->responseTimes;
     }

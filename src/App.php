@@ -37,24 +37,14 @@ class App
         $this->initServersTable();
 
         $this->initGlobalTable();
-        
+
         $this->initConfig();
-        
+
         $this->initLoadBalancer();
-        
+
         $this->initLogger();
 
         $this->initHealthChecker();
-    }
-
-    public function getConfig(): Config
-    {
-        return $this->config;
-    }
-
-    public function getHealthChecker(): HealthChecker
-    {
-        return $this->healthChecker;
     }
 
     private function initServersTable(): void
@@ -67,7 +57,7 @@ class App
         $serversTable->column('weight', Table::TYPE_INT, 2);
         $serversTable->column('is_healthy', Table::TYPE_INT, 1);
         $serversTable->column('connections', Table::TYPE_INT, 4);
-        $serversTable->column('response_times', Table::TYPE_INT, 4);
+        $serversTable->column('response_time', Table::TYPE_INT, 4);
         $serversTable->create();
 
         $this->serversTable = $serversTable;
@@ -81,7 +71,7 @@ class App
 
         $this->globalTable = $globalTable;
     }
-    
+
     private function initConfig(): void
     {
         $this->config = new Config();
@@ -93,21 +83,6 @@ class App
 
             die();
         }
-    }
-
-    private function initLoadBalancer(): void
-    {
-        $this->loadBalancer = new LoadBalancer($this->serversTable, $this->globalTable, $this->config->strategy);
-    }
-
-    private function initLogger(): void
-    {
-        $this->logger = new Logger(
-            $this->config->accessLogPath,
-            $this->config->errorLogPath,
-            $this->config->accessLogFormat,
-            $this->config->errorLogFormat
-        );
     }
 
     public function updateConfig(bool $reload): void
@@ -126,7 +101,7 @@ class App
                     'weight' => $server->getWeight(),
                     'is_healthy' => (int)$server->isHealthy(),
                     'connections' => $server->getConnections(),
-                    'response_times' => $server->getResponseTimes(),
+                    'response_time' => $server->getResponseTime(),
                 ]
             );
         }
@@ -136,9 +111,34 @@ class App
         }
     }
 
+    private function initLoadBalancer(): void
+    {
+        $this->loadBalancer = new LoadBalancer($this->serversTable, $this->globalTable, $this->config->strategy);
+    }
+
+    private function initLogger(): void
+    {
+        $this->logger = new Logger(
+            $this->config->accessLogPath,
+            $this->config->errorLogPath,
+            $this->config->accessLogFormat,
+            $this->config->errorLogFormat
+        );
+    }
+
     private function initHealthChecker(): void
     {
         $this->healthChecker = new HealthChecker($this->serversTable);
+    }
+
+    public function getConfig(): Config
+    {
+        return $this->config;
+    }
+
+    public function getHealthChecker(): HealthChecker
+    {
+        return $this->healthChecker;
     }
 
     public function handle(Request $request, Response $response)
@@ -146,23 +146,32 @@ class App
         $clientIp = $request->server['remote_addr'] ?? '127.0.0.1';
         $stickyCookie = $request->cookie['LBSESSION'] ?? null;
 
-        [$target, $index] =$this->loadBalancer->getServer($stickyCookie ?? $clientIp);
+        [$target, $index] = $this->loadBalancer->getServer($stickyCookie ?? $clientIp);
 
-       $this->serversTable->incr($index, 'connections');
+        $this->serversTable->incr($index, 'connections'); // Increase connections
+        $start = microtime(true); // Start timing
 
-        $client = new Client($target['host'], $target['port'], $target['ssl']);
+        $client = new Client($target['host'], $target['port'], !!$target['ssl']);
         $client->setMethod($request->server['request_method']);
         $client->setHeaders($request->header ?? []);
         $client->setData($request->rawContent());
         $client->execute($request->server['request_uri']);
 
-       $this->serversTable->decr($index, 'connections');
+        $this->serversTable->decr($index, 'connections'); // Decrease connections
+        $duration = microtime(true) - $start; // End timing
+        $durationMs = (int)round($duration * 1000); // convert to ms
+
+        $prev = $this->serversTable->get($index);
+        if ($prev !== false) {
+            $newTime = (int)round(($prev['response_time'] + $durationMs) / 2);
+            $this->serversTable->set($index, ['response_time' => $newTime]);
+        }
 
         if ($client->errCode) {
             $response->status(502);
             $response->end("Bad Gateway");
 
-           $this->logger->error("Failed to proxy to {$target['host']}:{$target['port']}: {$client->errMsg}");
+            $this->logger->error("Failed to proxy to {$target['host']}:{$target['port']}: {$client->errMsg}");
 
             return;
         }
@@ -182,6 +191,6 @@ class App
 
         $client->close();
 
-       $this->logger->access($request->server);
+        $this->logger->access($request->server);
     }
 }
