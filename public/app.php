@@ -13,10 +13,7 @@ $app = App::getInstance();
 
 $swooleServer = new Server("0.0.0.0", 8080);
 
-$swooleServer->set([
-    'worker_num' => $app->getConfig()->workerNum,
-    'enable_coroutine' => true,
-]);
+$swooleServer->set($app->getConfig()->getAppConfigs());
 
 $configFile = __DIR__ . '/../config/config.json';
 $lastMtime = filemtime($configFile);

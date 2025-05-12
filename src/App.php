@@ -90,7 +90,7 @@ class App
         $this->config->loadConfig();
 
         /** @var \KrakenTide\Server $server */
-        foreach ($this->config->servers as $key => $server) {
+        foreach ($this->config->getServers() as $key => $server) {
             $this->serversTable->set(
                 $key,
                 [
@@ -113,16 +113,16 @@ class App
 
     private function initLoadBalancer(): void
     {
-        $this->loadBalancer = new LoadBalancer($this->serversTable, $this->globalTable, $this->config->strategy);
+        $this->loadBalancer = new LoadBalancer($this->serversTable, $this->globalTable, $this->config->getStrategy());
     }
 
     private function initLogger(): void
     {
         $this->logger = new Logger(
-            $this->config->accessLogPath,
-            $this->config->errorLogPath,
-            $this->config->accessLogFormat,
-            $this->config->errorLogFormat
+            $this->config->getAccessLogPath(),
+            $this->config->getErrorLogPath(),
+            $this->config->getAccessLogFormat(),
+            $this->config->getErrorLogFormat(),
         );
     }
 
@@ -172,6 +172,8 @@ class App
             $response->end("Bad Gateway");
 
             $this->logger->error("Failed to proxy to {$target['host']}:{$target['port']}: {$client->errMsg}");
+
+            $client->close();
 
             return;
         }

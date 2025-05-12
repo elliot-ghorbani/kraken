@@ -38,9 +38,8 @@ class LoadBalancer
     {
         $this->setHealthyServers();
 
-        // do something here
         if (empty($this->healthyServers)) {
-            return [$this->serversTable[0], 0];
+            throw new \RuntimeException('No healthy servers found.');
         }
 
         $index = match ($this->strategy) {
