@@ -17,6 +17,8 @@ class HealthChecker
 
     public function check(): void
     {
+        echo "Health Check: Started..." . PHP_EOL;
+
         /** @var Server $server */
         foreach ($this->serversTable as $key => $server) {
             if (empty($server['health_check_path'])) {
@@ -41,5 +43,7 @@ class HealthChecker
                 $cli->close();
             });
         }
+
+        echo "Health Check: Done!" . PHP_EOL;
     }
 }

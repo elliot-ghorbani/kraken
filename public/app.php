@@ -15,10 +15,7 @@ $swooleServer = new Server("0.0.0.0", 8080);
 
 $swooleServer->set($app->getConfig()->getAppConfigs());
 
-$configFile = __DIR__ . '/../config/config.json';
-$lastMtime = filemtime($configFile);
-
-$swooleServer->on("start", function (Server $server) use ($app, &$lastMtime, $configFile) {
+$swooleServer->on("start", function (Server $server) use ($app) {
     echo "Kraken running at http://0.0.0.0:8080" . PHP_EOL;
 
     Process::signal(SIGINT, function () use ($server) {
@@ -27,33 +24,17 @@ $swooleServer->on("start", function (Server $server) use ($app, &$lastMtime, $co
     });
 
     // hot config reload
-    Timer::tick(1000, function () use ($app, &$lastMtime, $configFile) {
-        clearstatcache(true, $configFile);
-        $mtime = filemtime($configFile);
-
-        if ($mtime === $lastMtime) {
-            return;
-        }
-
-        echo "Reloading config..." . PHP_EOL;
-        $lastMtime = $mtime;
-
+    Timer::tick(1000, function () use ($app) {
         try {
             $app->updateConfig(true);
         } catch (\Throwable $e) {
             echo 'Reloading config failed...' . PHP_EOL . $e->getMessage();
         }
-
-        echo "Reload config ended..." . PHP_EOL;
     });
 
     // health check
     Timer::tick(10000, function () use ($app) {
-        echo "Health check started..." . PHP_EOL;
-
         $app->getHealthChecker()->check();
-
-        echo "Health check ended..." . PHP_EOL;
     });
 });
 

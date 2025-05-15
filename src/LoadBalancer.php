@@ -18,31 +18,31 @@ class LoadBalancer
 
     private Table $serversTable;
     private Table $globalTable;
-    private string $strategy;
     private array $healthyServers = [];
 
-    public function __construct(Table $serversTable, Table $globalTable, string $strategy)
+    public function __construct(Table $serversTable, Table $globalTable)
     {
         $this->serversTable = $serversTable;
         $this->globalTable = $globalTable;
-
-        $this->updateConfig($strategy);
     }
 
-    public function updateConfig(string $strategy): void
+    private function getStrategy(): string
     {
-        $this->strategy = $strategy;
+        $globalConfigs = $this->globalTable->get(0);
+
+        return $globalConfigs['strategy'];
     }
 
     public function getServer(?string $clientId = null): array
     {
+        var_dump($this->getStrategy());
         $this->setHealthyServers();
 
         if (empty($this->healthyServers)) {
             throw new \RuntimeException('No healthy servers found.');
         }
 
-        $index = match ($this->strategy) {
+        $index = match ($this->getStrategy()) {
             self::STRATEGY_RANDOM => $this->random(),
             self::STRATEGY_STICKY => $this->sticky($clientId),
             self::STRATEGY_ROUND_ROBIN => $this->roundRobin(),
@@ -55,7 +55,10 @@ class LoadBalancer
             default => array_key_first($this->healthyServers),
         };
 
-        $this->globalTable->set(0, ['last_index' => $index]);
+        $globalConfigs = $this->globalTable->get(0);
+        $globalConfigs['last_index'] = $index;
+
+        $this->globalTable->set(0, $globalConfigs);
 
         return [$this->healthyServers[$index], $index];
     }

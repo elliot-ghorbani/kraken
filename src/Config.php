@@ -4,6 +4,8 @@ namespace KrakenTide;
 
 class Config
 {
+    private const CONFIG_FILE_PATH = __DIR__ . '/../config/config.json';
+
     private array $appConfigs;
     private ServerCollection $servers;
     private string $strategy;
@@ -15,7 +17,7 @@ class Config
     public function loadConfig(): void
     {
         $configs = json_decode(
-            file_get_contents(__DIR__ . '/../config/config.json'),
+            file_get_contents(self::CONFIG_FILE_PATH),
             true,
             flags: JSON_THROW_ON_ERROR
         );
@@ -29,6 +31,7 @@ class Config
             'max_request' => 0,
             'open_tcp_nodelay' => true,
             'enable_reuse_port' => true,
+            'http_compression' => true,
         ];
 
         if (isset($serverConfigs['worker_num'])) {
@@ -53,12 +56,6 @@ class Config
             $this->errorLogFormat = $configs['error_log']['format']
                 ?? '$remote_addr - $host "$request_method $request_uri" $status $request_time "$http_user_agent"';
         }
-    }
-
-    public function updateConfig(LoadBalancer $loadBalancer, Logger $logger): void
-    {
-        $loadBalancer->updateConfig($this->strategy);
-        $logger->updateConfig($this->accessLogPath, $this->errorLogPath, $this->accessLogFormat, $this->errorLogFormat);
     }
 
     public function getAppConfigs(): array
@@ -94,5 +91,12 @@ class Config
     public function getErrorLogFormat(): string
     {
         return $this->errorLogFormat;
+    }
+
+    public static function getConfigFileTime(): int
+    {
+        clearstatcache(true, self::CONFIG_FILE_PATH);
+
+        return filemtime(self::CONFIG_FILE_PATH);
     }
 }

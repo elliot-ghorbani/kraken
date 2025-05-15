@@ -10,7 +10,7 @@ use Swoole\Table;
 class App
 {
     private Table $serversTable;
-    private Table $globalTable;
+    public Table $globalTable;
     private Config $config;
     private LoadBalancer $loadBalancer;
     private Logger $logger;
@@ -67,6 +67,8 @@ class App
     {
         $globalTable = new Table(1024);
         $globalTable->column('last_index', Table::TYPE_INT, 4);
+        $globalTable->column('config_file_time', Table::TYPE_INT, 4);
+        $globalTable->column('strategy', Table::TYPE_STRING, 32);
         $globalTable->create();
 
         $this->globalTable = $globalTable;
@@ -87,6 +89,17 @@ class App
 
     public function updateConfig(bool $reload): void
     {
+        if ($reload) {
+            $globalConfigs = $this->globalTable->get(0);
+            if (Config::getConfigFileTime() === $globalConfigs['config_file_time']) {
+                return;
+            }
+
+            echo "Config: Reloading..." . PHP_EOL;
+        } else {
+            echo "Config: Loading..." . PHP_EOL;
+        }
+
         $this->config->loadConfig();
 
         /** @var \KrakenTide\Server $server */
@@ -106,14 +119,17 @@ class App
             );
         }
 
-        if ($reload) {
-            $this->config->updateConfig($this->loadBalancer, $this->logger);
-        }
+        $globalConfigs = [];
+        $globalConfigs['config_file_time'] = $this->config::getConfigFileTime();
+        $globalConfigs['strategy'] = $this->config->getStrategy();
+        $this->globalTable->set(0, $globalConfigs);
+
+        echo "Config: Loaded!" . PHP_EOL;
     }
 
     private function initLoadBalancer(): void
     {
-        $this->loadBalancer = new LoadBalancer($this->serversTable, $this->globalTable, $this->config->getStrategy());
+        $this->loadBalancer = new LoadBalancer($this->serversTable, $this->globalTable);
     }
 
     private function initLogger(): void
@@ -189,7 +205,10 @@ class App
         }
 
         $response->cookie('LBSESSION', (string)$index, time() + 600);
-        $response->end($client->body);
+
+        if ($response->isWritable()) {
+            $response->end($client->body);
+        }
 
         $client->close();
 
