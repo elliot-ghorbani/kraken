@@ -3,6 +3,7 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use KrakenTide\App;
+use Swoole\Constant;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
 use Swoole\Http\Server;
@@ -15,7 +16,7 @@ $swooleServer = new Server("0.0.0.0", 8080);
 
 $swooleServer->set($app->getConfig()->getAppConfigs());
 
-$swooleServer->on("start", function (Server $server) use ($app) {
+$swooleServer->on(Constant::EVENT_START, function (Server $server) use ($app) {
     echo "Kraken running at http://0.0.0.0:8080" . PHP_EOL;
 
     Process::signal(SIGINT, function () use ($server) {
@@ -32,11 +33,11 @@ $swooleServer->on("start", function (Server $server) use ($app) {
     });
 
     Timer::tick(10000, function () use ($app) {
-        $app->getHealthChecker()->check();
+        $app->getHealthChecker()->handle();
     });
 });
 
-$swooleServer->on("WorkerStart", function (Server $server, int $workerId) {
+$swooleServer->on(Constant::EVENT_WORKER_START, function (Server $server, int $workerId) {
     echo "Worker {$workerId} started" . PHP_EOL;
 
     Process::signal(SIGINT, function () {
@@ -45,7 +46,7 @@ $swooleServer->on("WorkerStart", function (Server $server, int $workerId) {
     });
 });
 
-$swooleServer->on("request", function (Request $request, Response $response) use ($app) {
+$swooleServer->on(Constant::EVENT_REQUEST, function (Request $request, Response $response) use ($app) {
     $app->handle($request, $response);
 });
 

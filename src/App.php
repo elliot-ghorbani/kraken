@@ -2,9 +2,19 @@
 
 namespace KrakenTide;
 
+use KrakenTide\Dependencies\Config;
+use KrakenTide\Dependencies\HealthChecker;
+use KrakenTide\Dependencies\LoadBalancer;
+use KrakenTide\Dependencies\Logger;
+use KrakenTide\Dependencies\RateLimiter;
+use KrakenTide\Tables\GlobalTable;
+use KrakenTide\Tables\RateLimiterTable;
+use KrakenTide\Tables\ReportsTable;
+use KrakenTide\Tables\ServersTable;
 use Swoole\Coroutine\Http\Client;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
+use Swoole\Http\Status;
 use Swoole\Table;
 
 class App
@@ -22,7 +32,7 @@ class App
     {
     }
 
-    public static function getInstance()
+    public static function getInstance(): self
     {
         static $instance = null;
 
@@ -36,13 +46,7 @@ class App
 
     private function bootstrap(): void
     {
-        $this->initServersTable();
-
-        $this->initGlobalTable();
-
-        $this->initReportTable();
-
-        $this->initRateLimiterTable();
+        $this->initTables();
 
         $this->initConfig();
 
@@ -53,43 +57,12 @@ class App
         $this->initHealthChecker();
     }
 
-    private function initServersTable(): void
+    private function initTables(): void
     {
-        $serversTable = new Table(1024);
-        $serversTable->column('host', Table::TYPE_STRING, 64);
-        $serversTable->column('health_check_path', Table::TYPE_STRING, 64);
-        $serversTable->column('port', Table::TYPE_INT, 2);
-        $serversTable->column('ssl', Table::TYPE_INT, 1);
-        $serversTable->column('weight', Table::TYPE_INT, 2);
-        $serversTable->column('is_healthy', Table::TYPE_INT, 1);
-        $serversTable->column('connections', Table::TYPE_INT, 4);
-        $serversTable->column('response_time', Table::TYPE_INT, 4);
-        $serversTable->create();
-
-        $this->serversTable = $serversTable;
-    }
-
-    private function initGlobalTable(): void
-    {
-        $globalTable = new Table(1024);
-        $globalTable->column('last_index', Table::TYPE_INT, 4);
-        $globalTable->column('config_file_time', Table::TYPE_INT, 4);
-        $globalTable->column('strategy', Table::TYPE_STRING, 32);
-        $globalTable->column('rate_limiter_count', Table::TYPE_INT, 4);
-        $globalTable->column('rate_limiter_duration', Table::TYPE_INT, 4);
-        $globalTable->create();
-
-        $this->globalTable = $globalTable;
-    }
-
-    private function initReportTable(): void
-    {
-        $reportsTable = new Table(1024);
-        $reportsTable->column('path', Table::TYPE_STRING, 128);
-        $reportsTable->column('format', Table::TYPE_STRING, 128);
-        $reportsTable->create();
-
-        $this->reportsTable = $reportsTable;
+        $this->serversTable = ServersTable::create();
+        $this->globalTable = GlobalTable::create();
+        $this->reportsTable = ReportsTable::create();
+        $this->rateLimiterTable = RateLimiterTable::create();
     }
 
     public function getRateLimiterTable(): Table
@@ -102,20 +75,9 @@ class App
         return $this->globalTable;
     }
 
-    private function initRateLimiterTable(): void
-    {
-        $rateLimiterTable = new Table(10240);
-        $rateLimiterTable->column('count', Table::TYPE_INT);
-        $rateLimiterTable->column('window_start', Table::TYPE_INT);
-        $rateLimiterTable->create();
-        
-        $this->rateLimiterTable = $rateLimiterTable;
-    }
-
-
     private function initConfig(): void
     {
-        $this->config = new Config();
+        $this->config = new Config($this);
 
         try {
             $this->updateConfig(false);
@@ -129,8 +91,8 @@ class App
     public function updateConfig(bool $reload): void
     {
         if ($reload) {
-            $globalConfigs = $this->globalTable->get(0);
-            if (Config::getConfigFileTime() === $globalConfigs['config_file_time']) {
+            $globalConfigs = $this->globalTable->get(GlobalTable::GLOBAL_KEY);
+            if (Config::getConfigFileTime() === $globalConfigs[GlobalTable::CONFIG_FILE_TIME]) {
                 return;
             }
 
@@ -141,59 +103,22 @@ class App
 
         $this->config->loadConfig();
 
-        /** @var \KrakenTide\Server $server */
-        foreach ($this->config->getServers() as $key => $server) {
-            $this->serversTable->set(
-                $key,
-                [
-                    'host' => $server->getHost(),
-                    'port' => $server->getPort(),
-                    'ssl' => (int)$server->isSsl(),
-                    'health_check_path' => $server->getHealthCheckPath(),
-                    'weight' => $server->getWeight(),
-                    'is_healthy' => (int)$server->isHealthy(),
-                    'connections' => $server->getConnections(),
-                    'response_time' => $server->getResponseTime(),
-                ]
-            );
-        }
-
-        $globalConfigs = [
-            'config_file_time' => $this->config::getConfigFileTime(),
-            'strategy' => $this->config->getStrategy(),
-            'rate_limiter_duration' => $this->config->getRateLimiterDuration(),
-            'rate_limiter_count' => $this->config->getRateLimiterCount(),
-        ];
-        $this->globalTable->set(0, $globalConfigs);
-
-        $accessReportConfigs = [
-            'path' => $this->config->getAccessLogPath(),
-            'format' => $this->config->getAccessLogFormat(),
-        ];
-        $this->reportsTable->set('access', $accessReportConfigs);
-
-        $errorReportConfigs = [
-            'path' => $this->config->getErrorLogPath(),
-            'format' => $this->config->getErrorLogFormat(),
-        ];
-        $this->reportsTable->set('error', $errorReportConfigs);
-
         echo "Config: Loaded!" . PHP_EOL;
     }
 
     private function initLoadBalancer(): void
     {
-        $this->loadBalancer = new LoadBalancer($this->serversTable, $this->globalTable);
+        $this->loadBalancer = new LoadBalancer($this);
     }
 
     private function initLogger(): void
     {
-        $this->logger = new Logger($this->reportsTable);
+        $this->logger = new Logger($this);
     }
 
     private function initHealthChecker(): void
     {
-        $this->healthChecker = new HealthChecker($this->serversTable);
+        $this->healthChecker = new HealthChecker($this);
     }
 
     public function getConfig(): Config
@@ -206,7 +131,7 @@ class App
         return $this->healthChecker;
     }
 
-    public function handle(Request $request, Response $response)
+    public function handle(Request $request, Response $response): void
     {
         $clientIp = $request->server['remote_addr'] ?? '127.0.0.1';
 
@@ -221,30 +146,30 @@ class App
 
         [$target, $index] = $this->loadBalancer->getServer($stickyCookie ?? $clientIp);
 
-        $this->serversTable->incr($index, 'connections'); // Increase connections
+        $this->serversTable->incr($index, ServersTable::CONNECTIONS); // Increase connections
         $start = microtime(true); // Start timing
 
-        $client = new Client($target['host'], $target['port'], !!$target['ssl']);
+        $client = new Client($target[ServersTable::HOST], $target[ServersTable::PORT], !!$target[ServersTable::SSL]);
         $client->setMethod($request->server['request_method']);
         $client->setHeaders($request->header ?? []);
         $client->setData($request->rawContent());
         $client->execute($request->server['request_uri']);
 
-        $this->serversTable->decr($index, 'connections'); // Decrease connections
+        $this->serversTable->decr($index, ServersTable::CONNECTIONS); // Decrease connections
         $duration = microtime(true) - $start; // End timing
         $durationMs = (int)round($duration * 1000); // convert to ms
 
         $prev = $this->serversTable->get($index);
         if ($prev !== false) {
-            $newTime = (int)round(($prev['response_time'] + $durationMs) / 2);
-            $this->serversTable->set($index, ['response_time' => $newTime]);
+            $newTime = (int)round(($prev[ServersTable::RESPONSE_TIME] + $durationMs) / 2);
+            $this->serversTable->set($index, [ServersTable::RESPONSE_TIME => $newTime]);
         }
 
         if ($client->errCode) {
             $response->status(502);
             $response->end("Bad Gateway");
 
-            $this->logger->error("Failed to proxy to {$target['host']}:{$target['port']}: {$client->errMsg}");
+            $this->logger->error("Failed to proxy to {$target[ServersTable::HOST]}:{$target[ServersTable::PORT]}: {$client->errMsg}");
 
             $client->close();
 
@@ -270,5 +195,15 @@ class App
         $client->close();
 
         $this->logger->access($request->server);
+    }
+
+    public function getServersTable(): Table
+    {
+        return $this->serversTable;
+    }
+
+    public function getReportsTable(): Table
+    {
+        return $this->reportsTable;
     }
 }

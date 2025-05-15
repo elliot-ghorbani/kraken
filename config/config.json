@@ -3,26 +3,26 @@
   "servers": [
     {
       "host": "server1",
-      "port": "80",
+      "port": 80,
       "ssl": false,
       "weight": 10
     },
     {
       "host": "server2",
-      "port": "80",
+      "port": 80,
       "ssl": false,
       "weight": 3
     },
     {
       "host": "server3",
-      "port": "80",
+      "port": 80,
       "health_check_path": "/health",
       "ssl": false,
       "weight": 1
     },
     {
       "host": "server4",
-      "port": "80",
+      "port": 80,
       "ssl": false,
       "weight": 1
     }

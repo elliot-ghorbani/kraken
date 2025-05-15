@@ -3,9 +3,7 @@
   "description": "A simple PHP load balancer using Swoole with sticky sessions, health checks, and hot config reload.",
   "type": "project",
   "require": {
-    "php": "^8.4",
-    "ext-swoole": "*",
-    "ext-pcntl": "*"
+    "php": "^8.4"
   },
   "autoload": {
     "psr-4": {

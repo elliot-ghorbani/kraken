@@ -1,10 +1,11 @@
 <?php
 
-namespace KrakenTide;
+namespace KrakenTide\Dependencies;
 
-use Swoole\Table;
+use KrakenTide\Tables\GlobalTable;
+use KrakenTide\Tables\ServersTable;
 
-class LoadBalancer
+class LoadBalancer extends AbstrctDependency
 {
     public const string STRATEGY_RANDOM = 'random';
     public const string STRATEGY_LEAST_CONNECTION = 'least_conn';
@@ -16,21 +17,13 @@ class LoadBalancer
     public const string STRATEGY_STICKY = 'sticky';
     public const string STRATEGY_IP_HASH = 'ip_hash';
 
-    private Table $serversTable;
-    private Table $globalTable;
     private array $healthyServers = [];
-
-    public function __construct(Table $serversTable, Table $globalTable)
-    {
-        $this->serversTable = $serversTable;
-        $this->globalTable = $globalTable;
-    }
 
     private function getStrategy(): string
     {
-        $globalConfigs = $this->globalTable->get(0);
+        $globalConfigs = $this->app->getGlobalTable()->get(GlobalTable::GLOBAL_KEY);
 
-        return $globalConfigs['strategy'];
+        return $globalConfigs[GlobalTable::STRATEGY];
     }
 
     public function getServer(?string $clientId = null): array
@@ -54,10 +47,10 @@ class LoadBalancer
             default => array_key_first($this->healthyServers),
         };
 
-        $globalConfigs = $this->globalTable->get(0);
-        $globalConfigs['last_index'] = $index;
+        $globalConfigs = $this->app->getGlobalTable()->get(GlobalTable::GLOBAL_KEY);
+        $globalConfigs[GlobalTable::LAST_INDEX] = $index;
 
-        $this->globalTable->set(0, $globalConfigs);
+        $this->app->getGlobalTable()->set(GlobalTable::GLOBAL_KEY, $globalConfigs);
 
         return [$this->healthyServers[$index], $index];
     }
@@ -66,8 +59,8 @@ class LoadBalancer
     {
         $this->healthyServers = [];
 
-        foreach ($this->serversTable as $key => $item) {
-            if (!$item['is_healthy']) {
+        foreach ($this->app->getServersTable() as $key => $item) {
+            if (!$item[ServersTable::IS_HEALTHY]) {
                 continue;
             }
 
@@ -108,8 +101,8 @@ class LoadBalancer
     {
         $lastIndex = array_key_first($this->healthyServers);
 
-        if ($global = $this->globalTable->get(0)) {
-            $nextIndex = ($global['last_index'] + 1)  % count($this->healthyServers);
+        if ($global = $this->app->getGlobalTable()->get(GlobalTable::GLOBAL_KEY)) {
+            $nextIndex = ($global[GlobalTable::LAST_INDEX] + 1)  % count($this->healthyServers);
 
             if (isset($this->healthyServers[$nextIndex])) {
                 $lastIndex = $nextIndex;
@@ -123,12 +116,12 @@ class LoadBalancer
     {
         $weights = [];
         foreach ($this->healthyServers as $key => $server) {
-            $weights = array_merge($weights, array_fill(0, $server['weight'], $key));
+            $weights = array_merge($weights, array_fill(0, $server[ServersTable::WEIGHT], $key));
         }
 
         $lastIndex = 0;
-        if ($global = $this->globalTable->get(0)) {
-            $lastIndex = ($global['last_index'] + 1) % count($weights);
+        if ($global = $this->app->getGlobalTable()->get(GlobalTable::GLOBAL_KEY)) {
+            $lastIndex = ($global[GlobalTable::LAST_INDEX] + 1) % count($weights);
         }
 
         return $weights[$lastIndex];
@@ -137,7 +130,7 @@ class LoadBalancer
     private function leastConnection(): int
     {
         uasort($this->healthyServers, function (array $a, array $b) {
-            return $a['connections'] <=> $b['connections'];
+            return $a[ServersTable::CONNECTIONS] <=> $b[ServersTable::CONNECTIONS];
         });
 
         return array_key_first($this->healthyServers);
@@ -146,8 +139,8 @@ class LoadBalancer
     private function weightedLeastConnection(): int
     {
         uasort($this->healthyServers, function (array $a, array $b) {
-            $aValue = $a['connections'] / max(1, $a['weight']);
-            $bValue = $b['connections'] / max(1, $b['weight']);
+            $aValue = $a[ServersTable::CONNECTIONS] / max(1, $a[ServersTable::WEIGHT]);
+            $bValue = $b[ServersTable::CONNECTIONS] / max(1, $b[ServersTable::WEIGHT]);
 
             return $aValue <=> $bValue;
         });
@@ -158,7 +151,7 @@ class LoadBalancer
     private function leastResponseTime(): int
     {
         uasort($this->healthyServers, function (array $a, array $b) {
-            return $a['response_time'] <=> $b['response_time'];
+            return $a[ServersTable::RESPONSE_TIME] <=> $b[ServersTable::RESPONSE_TIME];
         });
 
         return array_key_first($this->healthyServers);
@@ -167,8 +160,8 @@ class LoadBalancer
     private function weightedLeastResponseTime(): int
     {
         uasort($this->healthyServers, function (array $a, array $b) {
-            $aValue = $a['response_time'] / max(1, $a['weight']);
-            $bValue = $b['response_time'] / max(1, $b['weight']);
+            $aValue = $a[ServersTable::RESPONSE_TIME] / max(1, $a[ServersTable::WEIGHT]);
+            $bValue = $b[ServersTable::RESPONSE_TIME] / max(1, $b[ServersTable::WEIGHT]);
             return $aValue <=> $bValue;
         });
 

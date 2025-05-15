@@ -1,36 +1,29 @@
 <?php
 
-namespace KrakenTide;
+namespace KrakenTide\Dependencies;
 
 use DateTime;
-use Swoole\Table;
+use KrakenTide\Tables\ReportsTable;
 
-class Logger
+class Logger extends AbstrctDependency
 {
-    private Table $loggerTable;
-
-    public function __construct(Table $loggerTable)
-    {
-        $this->loggerTable = $loggerTable;
-    }
-
     public function access(array $context): void
     {
-        $accessConfig = $this->loggerTable->get('access');
+        $accessConfig = $this->app->getReportsTable()->get(ReportsTable::ACCESS);
 
-        $log = $this->interpolate($accessConfig['format'], $context);
+        $log = $this->interpolate($accessConfig[ReportsTable::FORMAT], $context);
 
-        file_put_contents($accessConfig['path'], $log . PHP_EOL, FILE_APPEND);
+        file_put_contents($accessConfig[ReportsTable::PATH], $log . PHP_EOL, FILE_APPEND);
     }
 
     public function error(string $message, array $context = []): void
     {
         $context['message'] = $message;
-        $errorConfig = $this->loggerTable->get('error');
+        $errorConfig = $this->app->getReportsTable()->get(ReportsTable::ERROR);
 
-        $log = $this->interpolate($errorConfig['format'], $context);
+        $log = $this->interpolate($errorConfig[ReportsTable::FORMAT], $context);
 
-        file_put_contents($errorConfig['path'], $log . PHP_EOL, FILE_APPEND);
+        file_put_contents($errorConfig[ReportsTable::PATH], $log . PHP_EOL, FILE_APPEND);
     }
 
     protected function interpolate(string $template, array $context): string
