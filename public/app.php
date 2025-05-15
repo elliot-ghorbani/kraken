@@ -23,7 +23,6 @@ $swooleServer->on("start", function (Server $server) use ($app) {
         $server->shutdown();
     });
 
-    // hot config reload
     Timer::tick(1000, function () use ($app) {
         try {
             $app->updateConfig(true);
@@ -32,7 +31,6 @@ $swooleServer->on("start", function (Server $server) use ($app) {
         }
     });
 
-    // health check
     Timer::tick(10000, function () use ($app) {
         $app->getHealthChecker()->check();
     });

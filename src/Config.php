@@ -13,6 +13,8 @@ class Config
     private string $accessLogFormat;
     private string $errorLogPath;
     private string $errorLogFormat;
+    private int $rateLimiterCount;
+    private int $rateLimiterDuration;
 
     public function loadConfig(): void
     {
@@ -44,6 +46,11 @@ class Config
         }
 
         $this->strategy = $configs['strategy'] ?? 'round_robin';
+
+        if (isset($configs['rate_limiter_count']) && $configs['rate_limiter_duration']) {
+            $this->rateLimiterCount = $configs['rate_limiter_count'];
+            $this->rateLimiterDuration = $configs['rate_limiter_duration'];
+        }
 
         $this->accessLogPath = $configs['access_log']['path'] ?? '/tmp/php_lb_access.log';
         $this->accessLogFormat = $configs['access_log']['format']
@@ -94,5 +101,15 @@ class Config
         clearstatcache(true, self::CONFIG_FILE_PATH);
 
         return filemtime(self::CONFIG_FILE_PATH);
+    }
+
+    public function getRateLimiterCount(): int
+    {
+        return $this->rateLimiterCount;
+    }
+
+    public function getRateLimiterDuration(): int
+    {
+        return $this->rateLimiterDuration;
     }
 }

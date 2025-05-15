@@ -1,0 +1,27 @@
+services:
+  swoole:
+    image: openswoole/swoole:25.2-php8.4
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./:/var/lib/kraken-tide:Z
+
+  server1:
+    image: nginx:1.27.4
+    ports:
+      - "127.0.0.1:8090:80"
+
+  server2:
+    image: nginx:1.27.4
+    ports:
+      - "127.0.0.1:8091:80"
+
+  server3:
+    image: nginx:1.27.4
+    ports:
+      - "127.0.0.1:8092:80"
+
+  server4:
+    image: nginx:1.27.4
+    ports:
+      - "127.0.0.1:8093:80"

@@ -10,12 +10,13 @@ use Swoole\Table;
 class App
 {
     private Table $serversTable;
-    public Table $globalTable;
+    private Table $globalTable;
     private Config $config;
     private LoadBalancer $loadBalancer;
     private Logger $logger;
     private HealthChecker $healthChecker;
     private Table $reportsTable;
+    private Table $rateLimiterTable;
 
     private function __construct()
     {
@@ -40,6 +41,8 @@ class App
         $this->initGlobalTable();
 
         $this->initReportTable();
+
+        $this->initRateLimiterTable();
 
         $this->initConfig();
 
@@ -72,6 +75,8 @@ class App
         $globalTable->column('last_index', Table::TYPE_INT, 4);
         $globalTable->column('config_file_time', Table::TYPE_INT, 4);
         $globalTable->column('strategy', Table::TYPE_STRING, 32);
+        $globalTable->column('rate_limiter_count', Table::TYPE_INT, 4);
+        $globalTable->column('rate_limiter_duration', Table::TYPE_INT, 4);
         $globalTable->create();
 
         $this->globalTable = $globalTable;
@@ -86,6 +91,27 @@ class App
 
         $this->reportsTable = $reportsTable;
     }
+
+    public function getRateLimiterTable(): Table
+    {
+        return $this->rateLimiterTable;
+    }
+
+    public function getGlobalTable(): Table
+    {
+        return $this->globalTable;
+    }
+
+    private function initRateLimiterTable(): void
+    {
+        $rateLimiterTable = new Table(10240);
+        $rateLimiterTable->column('count', Table::TYPE_INT);
+        $rateLimiterTable->column('window_start', Table::TYPE_INT);
+        $rateLimiterTable->create();
+        
+        $this->rateLimiterTable = $rateLimiterTable;
+    }
+
 
     private function initConfig(): void
     {
@@ -135,6 +161,8 @@ class App
         $globalConfigs = [
             'config_file_time' => $this->config::getConfigFileTime(),
             'strategy' => $this->config->getStrategy(),
+            'rate_limiter_duration' => $this->config->getRateLimiterDuration(),
+            'rate_limiter_count' => $this->config->getRateLimiterCount(),
         ];
         $this->globalTable->set(0, $globalConfigs);
 
@@ -181,6 +209,14 @@ class App
     public function handle(Request $request, Response $response)
     {
         $clientIp = $request->server['remote_addr'] ?? '127.0.0.1';
+
+        if (!new RateLimiter($this)->handle($clientIp)) {
+            $response->status(429);
+            $response->end("Too Many Requests");
+
+            return;
+        }
+
         $stickyCookie = $request->cookie['LBSESSION'] ?? null;
 
         [$target, $index] = $this->loadBalancer->getServer($stickyCookie ?? $clientIp);

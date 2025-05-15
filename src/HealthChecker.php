@@ -22,7 +22,7 @@ class HealthChecker
         /** @var Server $server */
         foreach ($this->serversTable as $key => $server) {
             if (empty($server['health_check_path'])) {
-                return;
+                continue;
             }
 
             Coroutine::create(function () use ($server, $key) {
