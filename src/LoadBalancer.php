@@ -35,7 +35,6 @@ class LoadBalancer
 
     public function getServer(?string $clientId = null): array
     {
-        var_dump($this->getStrategy());
         $this->setHealthyServers();
 
         if (empty($this->healthyServers)) {

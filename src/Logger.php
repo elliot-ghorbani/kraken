@@ -3,48 +3,34 @@
 namespace KrakenTide;
 
 use DateTime;
+use Swoole\Table;
 
 class Logger
 {
-    protected string $accessLogPath;
-    protected string $errorLogPath;
-    protected string $accessLogFormat;
-    protected string $errorLogFormat;
+    private Table $loggerTable;
 
-    public function __construct(
-        string $accessLogPath,
-        string $errorLogPath,
-        string $accessLogFormat,
-        string $errorLogFormat,
-    ) {
-        $this->updateConfig($accessLogPath, $errorLogPath, $accessLogFormat, $errorLogFormat);
-    }
-
-    public function updateConfig(
-        string $accessLogPath,
-        string $errorLogPath,
-        string $accessLogFormat,
-        string $errorLogFormat,
-    ): void {
-        $this->accessLogPath = $accessLogPath;
-        $this->errorLogPath = $errorLogPath;
-        $this->accessLogFormat = $accessLogFormat;
-        $this->errorLogFormat = $errorLogFormat;
+    public function __construct(Table $loggerTable)
+    {
+        $this->loggerTable = $loggerTable;
     }
 
     public function access(array $context): void
     {
-        $log = $this->interpolate($this->accessLogFormat, $context);
+        $accessConfig = $this->loggerTable->get('access');
 
-        file_put_contents($this->accessLogPath, $log . PHP_EOL, FILE_APPEND);
+        $log = $this->interpolate($accessConfig['format'], $context);
+
+        file_put_contents($accessConfig['path'], $log . PHP_EOL, FILE_APPEND);
     }
 
     public function error(string $message, array $context = []): void
     {
         $context['message'] = $message;
-        $log = $this->interpolate($this->errorLogFormat, $context);
+        $errorConfig = $this->loggerTable->get('error');
 
-        file_put_contents($this->errorLogPath, $log . PHP_EOL, FILE_APPEND);
+        $log = $this->interpolate($errorConfig['format'], $context);
+
+        file_put_contents($errorConfig['path'], $log . PHP_EOL, FILE_APPEND);
     }
 
     protected function interpolate(string $template, array $context): string

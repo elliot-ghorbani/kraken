@@ -4,7 +4,7 @@ namespace KrakenTide;
 
 class Config
 {
-    private const CONFIG_FILE_PATH = __DIR__ . '/../config/config.json';
+    private const string CONFIG_FILE_PATH = __DIR__ . '/../config/config.json';
 
     private array $appConfigs;
     private ServerCollection $servers;
@@ -45,17 +45,13 @@ class Config
 
         $this->strategy = $configs['strategy'] ?? 'round_robin';
 
-        if (isset($configs['access_log'])) {
-            $this->accessLogPath = $configs['access_log']['path'] ?? '/tmp/php_lb_access.log';
-            $this->accessLogFormat = $configs['access_log']['format']
-                ?? '$remote_addr - $host "$request_method $request_uri" $status $request_time "$http_user_agent"';
-        }
+        $this->accessLogPath = $configs['access_log']['path'] ?? '/tmp/php_lb_access.log';
+        $this->accessLogFormat = $configs['access_log']['format']
+            ?? '$remote_addr - $host "$request_method $request_uri" $status $request_time "$http_user_agent"';
 
-        if (isset($configs['error_log'])) {
-            $this->errorLogPath = $configs['error_log']['path'] ?? '/tmp/php_lb_error.log';
-            $this->errorLogFormat = $configs['error_log']['format']
-                ?? '$remote_addr - $host "$request_method $request_uri" $status $request_time "$http_user_agent"';
-        }
+        $this->errorLogPath = $configs['error_log']['path'] ?? '/tmp/php_lb_error.log';
+        $this->errorLogFormat = $configs['error_log']['format']
+            ?? '$remote_addr - $host "$request_method $request_uri" $status $request_time "$http_user_agent"';
     }
 
     public function getAppConfigs(): array

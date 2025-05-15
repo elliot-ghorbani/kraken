@@ -15,6 +15,7 @@ class App
     private LoadBalancer $loadBalancer;
     private Logger $logger;
     private HealthChecker $healthChecker;
+    private Table $reportsTable;
 
     private function __construct()
     {
@@ -37,6 +38,8 @@ class App
         $this->initServersTable();
 
         $this->initGlobalTable();
+
+        $this->initReportTable();
 
         $this->initConfig();
 
@@ -72,6 +75,16 @@ class App
         $globalTable->create();
 
         $this->globalTable = $globalTable;
+    }
+
+    private function initReportTable(): void
+    {
+        $reportsTable = new Table(1024);
+        $reportsTable->column('path', Table::TYPE_STRING, 128);
+        $reportsTable->column('format', Table::TYPE_STRING, 128);
+        $reportsTable->create();
+
+        $this->reportsTable = $reportsTable;
     }
 
     private function initConfig(): void
@@ -119,10 +132,23 @@ class App
             );
         }
 
-        $globalConfigs = [];
-        $globalConfigs['config_file_time'] = $this->config::getConfigFileTime();
-        $globalConfigs['strategy'] = $this->config->getStrategy();
+        $globalConfigs = [
+            'config_file_time' => $this->config::getConfigFileTime(),
+            'strategy' => $this->config->getStrategy(),
+        ];
         $this->globalTable->set(0, $globalConfigs);
+
+        $accessReportConfigs = [
+            'path' => $this->config->getAccessLogPath(),
+            'format' => $this->config->getAccessLogFormat(),
+        ];
+        $this->reportsTable->set('access', $accessReportConfigs);
+
+        $errorReportConfigs = [
+            'path' => $this->config->getErrorLogPath(),
+            'format' => $this->config->getErrorLogFormat(),
+        ];
+        $this->reportsTable->set('error', $errorReportConfigs);
 
         echo "Config: Loaded!" . PHP_EOL;
     }
@@ -134,12 +160,7 @@ class App
 
     private function initLogger(): void
     {
-        $this->logger = new Logger(
-            $this->config->getAccessLogPath(),
-            $this->config->getErrorLogPath(),
-            $this->config->getAccessLogFormat(),
-            $this->config->getErrorLogFormat(),
-        );
+        $this->logger = new Logger($this->reportsTable);
     }
 
     private function initHealthChecker(): void
