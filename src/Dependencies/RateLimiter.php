@@ -4,10 +4,11 @@ namespace KrakenTide\Dependencies;
 
 use KrakenTide\Tables\GlobalTable;
 use KrakenTide\Tables\RateLimiterTable;
+use Swoole\Http\Request;
 
 class RateLimiter extends AbstrctDependency
 {
-    public function handle(string $clientIp): bool
+    public function handle(Request $request): bool
     {
         $configs = $this->app->getGlobalTable()->get(GlobalTable::GLOBAL_KEY);
 
@@ -17,6 +18,7 @@ class RateLimiter extends AbstrctDependency
 
         $rateLimiterTable = $this->app->getRateLimiterTable();
 
+        $clientIp = $request->server['remote_addr'] ?? '127.0.0.1';
         $data = $rateLimiterTable->get($clientIp);
 
         if ($data) {

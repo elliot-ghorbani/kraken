@@ -14,7 +14,6 @@ use KrakenTide\Tables\ServersTable;
 use Swoole\Coroutine\Http\Client;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
-use Swoole\Http\Status;
 use Swoole\Table;
 
 class App
@@ -133,18 +132,14 @@ class App
 
     public function handle(Request $request, Response $response): void
     {
-        $clientIp = $request->server['remote_addr'] ?? '127.0.0.1';
-
-        if (!new RateLimiter($this)->handle($clientIp)) {
+        if (!new RateLimiter($this)->handle($request)) {
             $response->status(429);
             $response->end("Too Many Requests");
 
             return;
         }
 
-        $stickyCookie = $request->cookie['LBSESSION'] ?? null;
-
-        [$target, $index] = $this->loadBalancer->getServer($stickyCookie ?? $clientIp);
+        [$target, $index] = $this->loadBalancer->getServer($request);
 
         $this->serversTable->incr($index, ServersTable::CONNECTIONS); // Increase connections
         $start = microtime(true); // Start timing
@@ -186,7 +181,7 @@ class App
             }
         }
 
-        $response->cookie('LBSESSION', (string)$index, time() + 600);
+        $response->cookie(LoadBalancer::SESSION_COOKIE, (string)$index, time() + 600);
 
         if ($response->isWritable()) {
             $response->end($client->body);

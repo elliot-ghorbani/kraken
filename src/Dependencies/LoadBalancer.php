@@ -4,6 +4,7 @@ namespace KrakenTide\Dependencies;
 
 use KrakenTide\Tables\GlobalTable;
 use KrakenTide\Tables\ServersTable;
+use Swoole\Http\Request;
 
 class LoadBalancer extends AbstrctDependency
 {
@@ -17,6 +18,8 @@ class LoadBalancer extends AbstrctDependency
     public const string STRATEGY_STICKY = 'sticky';
     public const string STRATEGY_IP_HASH = 'ip_hash';
 
+    public const string SESSION_COOKIE = 'LBSESSION';
+
     private array $healthyServers = [];
 
     private function getStrategy(): string
@@ -26,7 +29,7 @@ class LoadBalancer extends AbstrctDependency
         return $globalConfigs[GlobalTable::STRATEGY];
     }
 
-    public function getServer(?string $clientId = null): array
+    public function getServer(Request $request): array
     {
         $this->setHealthyServers();
 
@@ -36,14 +39,14 @@ class LoadBalancer extends AbstrctDependency
 
         $index = match ($this->getStrategy()) {
             self::STRATEGY_RANDOM => $this->random(),
-            self::STRATEGY_STICKY => $this->sticky($clientId),
+            self::STRATEGY_STICKY => $this->sticky($request),
             self::STRATEGY_ROUND_ROBIN => $this->roundRobin(),
             self::STRATEGY_WEIGHTED_ROUND_ROBIN => $this->weightedRoundRobin(),
             self::STRATEGY_LEAST_RESPONSE_TIME => $this->leastResponseTime(),
             self::STRATEGY_WEIGHTED_LEAST_RESPONSE_TIME => $this->weightedLeastResponseTime(),
             self::STRATEGY_LEAST_CONNECTION => $this->leastConnection(),
             self::STRATEGY_WEIGHTED_LEAST_CONNECTION => $this->weightedLeastConnection(),
-            self::STRATEGY_IP_HASH => $this->ipHash($clientId),
+            self::STRATEGY_IP_HASH => $this->ipHash($request),
             default => array_key_first($this->healthyServers),
         };
 
@@ -73,25 +76,29 @@ class LoadBalancer extends AbstrctDependency
         return array_rand($this->healthyServers);
     }
 
-    private function sticky(?string $clientId = null): int
+    private function sticky(Request $request): int
     {
-        if ($clientId === null) {
+        $stickyCookie = $request->cookie[self::SESSION_COOKIE] ?? null;
+
+        if ($stickyCookie === null) {
             return $this->random();
         }
 
-        $hash = crc32($clientId);
+        $hash = crc32($stickyCookie);
         $index = $hash % count($this->healthyServers);
 
         return array_keys($this->healthyServers)[$index];
     }
 
-    private function ipHash(?string $clientId = null): int
+    private function ipHash(Request $request): int
     {
-        if ($clientId === null) {
+        $clientIp = $request->server['remote_addr'] ?? '127.0.0.1';
+
+        if ($clientIp === null) {
             return $this->random();
         }
 
-        $hash = crc32($clientId);
+        $hash = crc32($clientIp);
         $index = $hash % count($this->healthyServers);
 
         return array_keys($this->healthyServers)[$index];
