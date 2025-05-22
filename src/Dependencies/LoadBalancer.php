@@ -92,9 +92,9 @@ class LoadBalancer extends AbstrctDependency
 
     private function ipHash(Request $request): int
     {
-        $clientIp = $request->server['remote_addr'] ?? '127.0.0.1';
+        $clientIp = $request->server['remote_addr'] ?? '';
 
-        if ($clientIp === null) {
+        if (empty($clientIp)) {
             return $this->random();
         }
 

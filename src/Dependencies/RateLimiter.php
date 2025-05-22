@@ -40,7 +40,7 @@ class RateLimiter extends AbstrctDependency
         return true;
     }
 
-    public function cleanUp()
+    public function cleanUp(): void
     {
         $configs = $this->app->getGlobalTable()->get(GlobalTable::GLOBAL_KEY);
 

@@ -36,6 +36,8 @@ Example:
 ```
 {
   "worker_num": 3,
+  "ssl_cert_file": "/path/to/fullchain.pem",
+  "ssl_key_file": "/path/to/privkey.pem",
   "servers": [
     {
       "host": "server1",
