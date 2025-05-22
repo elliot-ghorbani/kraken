@@ -52,13 +52,20 @@ class Config extends AbstrctDependency
             Constant::OPTION_SOCKET_BUFFER_SIZE => 2 * 1024 * 1024,
             Constant::OPTION_BUFFER_OUTPUT_SIZE => 2 * 1024 * 1024,
             Constant::OPTION_MAX_REQUEST => 0,
+            Constant::OPTION_OPEN_CPU_AFFINITY => true,
             Constant::OPTION_OPEN_TCP_NODELAY => true,
             Constant::OPTION_ENABLE_REUSE_PORT => true,
             Constant::OPTION_HTTP_COMPRESSION => true,
+            Constant::OPTION_OPEN_HTTP2_PROTOCOL => true,
         ];
 
         if (isset($this->configArray['worker_num'])) {
             $this->appConfigs[Constant::OPTION_WORKER_NUM] = $this->configArray['worker_num'];
+        }
+
+        if (isset($this->configArray['ssl_cert_file']) && $this->configArray['ssl_key_file']) {
+            $this->appConfigs[Constant::OPTION_SSL_CERT_FILE] = $this->configArray['ssl_cert_file'];
+            $this->appConfigs[Constant::OPTION_SSL_KEY_FILE] = $this->configArray['ssl_key_file'];
         }
     }
 
@@ -83,8 +90,11 @@ class Config extends AbstrctDependency
 
     private function setGlobalConfig(): void
     {
-        $globalConfigs = [GlobalTable::STRATEGY => $this->configArray['strategy'] ?? LoadBalancer::STRATEGY_ROUND_ROBIN];
-        $globalConfigs = [GlobalTable::CONFIG_FILE_TIME => filectime(self::CONFIG_FILE_PATH)];
+        $globalConfigs = [
+            GlobalTable::STRATEGY => $this->configArray['strategy'] ?? LoadBalancer::STRATEGY_ROUND_ROBIN,
+            GlobalTable::CONFIG_FILE_TIME => filectime(self::CONFIG_FILE_PATH)
+        ];
+
         if (isset($this->configArray['rate_limiter_count']) && $this->configArray['rate_limiter_duration']) {
             $globalConfigs[GlobalTable::RATE_LIMITER_DURATION] = $this->configArray['rate_limiter_duration'];
             $globalConfigs[GlobalTable::RATE_LIMITER_COUNT] = $this->configArray['rate_limiter_count'];

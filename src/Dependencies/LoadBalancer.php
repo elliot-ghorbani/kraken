@@ -106,17 +106,21 @@ class LoadBalancer extends AbstrctDependency
 
     private function roundRobin(): int
     {
-        $lastIndex = array_key_first($this->healthyServers);
+        $global = $this->app->getGlobalTable()->get(GlobalTable::GLOBAL_KEY);
 
-        if ($global = $this->app->getGlobalTable()->get(GlobalTable::GLOBAL_KEY)) {
-            $nextIndex = ($global[GlobalTable::LAST_INDEX] + 1)  % count($this->healthyServers);
-
-            if (isset($this->healthyServers[$nextIndex])) {
-                $lastIndex = $nextIndex;
-            }
+        if (!$global) {
+            return array_key_first($this->healthyServers);
         }
 
-        return $lastIndex;
+        $lastIndex = $global[GlobalTable::LAST_INDEX];
+        while (true) {
+            $lastIndex++;
+            $nextIndex = $lastIndex  % count($this->app->getServersTable());
+
+            if (isset($this->healthyServers[$nextIndex])) {
+                return $nextIndex;
+            }
+        }
     }
 
     private function weightedRoundRobin(): int

@@ -14,10 +14,15 @@ use KrakenTide\Tables\ServersTable;
 use Swoole\Coroutine\Http\Client;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
+use Swoole\Http\Server;
 use Swoole\Table;
+use Swoole\Constant;
+use Swoole\Process;
+use Swoole\Timer;
 
 class App
 {
+    private Server $swooleServer;
     private Table $serversTable;
     private Table $globalTable;
     private Config $config;
@@ -26,56 +31,26 @@ class App
     private HealthChecker $healthChecker;
     private Table $reportsTable;
     private Table $rateLimiterTable;
+    private RateLimiter $rateLimiter;
 
-    private function __construct()
+    public function __construct()
     {
-    }
-
-    public static function getInstance(): self
-    {
-        static $instance = null;
-
-        if ($instance === null) {
-            $instance = new self();
-            $instance->bootstrap();
-        }
-
-        return $instance;
-    }
-
-    private function bootstrap(): void
-    {
-        $this->initTables();
-
         $this->initConfig();
 
-        $this->initLoadBalancer();
-
-        $this->initLogger();
-
-        $this->initHealthChecker();
+        $this->swooleServer = new Server("0.0.0.0", 8080, SWOOLE_PROCESS);
+        $this->loadBalancer = new LoadBalancer($this);
+        $this->logger = new Logger($this);
+        $this->healthChecker = new HealthChecker($this);
+        $this->rateLimiter = new RateLimiter($this);
     }
 
-    private function initTables(): void
+    private function initConfig(): void
     {
         $this->serversTable = ServersTable::create();
         $this->globalTable = GlobalTable::create();
         $this->reportsTable = ReportsTable::create();
         $this->rateLimiterTable = RateLimiterTable::create();
-    }
 
-    public function getRateLimiterTable(): Table
-    {
-        return $this->rateLimiterTable;
-    }
-
-    public function getGlobalTable(): Table
-    {
-        return $this->globalTable;
-    }
-
-    private function initConfig(): void
-    {
         $this->config = new Config($this);
 
         try {
@@ -105,34 +80,74 @@ class App
         echo "Config: Loaded!" . PHP_EOL;
     }
 
-    private function initLoadBalancer(): void
+    public function getRateLimiterTable(): Table
     {
-        $this->loadBalancer = new LoadBalancer($this);
+        return $this->rateLimiterTable;
     }
 
-    private function initLogger(): void
+    public function getGlobalTable(): Table
     {
-        $this->logger = new Logger($this);
+        return $this->globalTable;
     }
 
-    private function initHealthChecker(): void
+    public function getServersTable(): Table
     {
-        $this->healthChecker = new HealthChecker($this);
+        return $this->serversTable;
     }
 
-    public function getConfig(): Config
+    public function getReportsTable(): Table
     {
-        return $this->config;
+        return $this->reportsTable;
     }
 
-    public function getHealthChecker(): HealthChecker
+    public function start(): void
     {
-        return $this->healthChecker;
+        $this->swooleServer->set($this->config->getAppConfigs());
+
+        $this->swooleServer->on(Constant::EVENT_START, function (Server $server) {
+            echo "Kraken running at http://0.0.0.0:8080" . PHP_EOL;
+
+            Process::signal(SIGINT, function () use ($server) {
+                echo "Shutting down gracefully..." . PHP_EOL;
+                $server->shutdown();
+            });
+
+            Timer::tick(1000, function () {
+                try {
+                    $this->updateConfig(true);
+                } catch (\Throwable $e) {
+                    echo 'Reloading config failed...' . PHP_EOL . $e->getMessage();
+                }
+            });
+
+            Timer::tick(1000, function () {
+                $this->rateLimiter->cleanUp();
+            });
+
+            Timer::tick(10000, function () {
+                $this->healthChecker->handle();
+            });
+        });
+
+        $this->swooleServer->on(Constant::EVENT_WORKER_START, function (Server $server, int $workerId) {
+            echo "Worker {$workerId} started" . PHP_EOL;
+
+            Process::signal(SIGINT, function () {
+                echo "Worker received SIGINT, exiting..." . PHP_EOL;
+                exit(0);
+            });
+        });
+
+        $this->swooleServer->on(Constant::EVENT_REQUEST, function (Request $request, Response $response) {
+            $this->handle($request, $response);
+        });
+
+        $this->swooleServer->start();
     }
 
     public function handle(Request $request, Response $response): void
     {
-        if (!new RateLimiter($this)->handle($request)) {
+        if (!$this->rateLimiter->handle($request)) {
             $response->status(429);
             $response->end("Too Many Requests");
 
@@ -164,7 +179,9 @@ class App
             $response->status(502);
             $response->end("Bad Gateway");
 
-            $this->logger->error("Failed to proxy to {$target[ServersTable::HOST]}:{$target[ServersTable::PORT]}: {$client->errMsg}");
+            $this->logger->error(
+                "Failed to proxy to {$target[ServersTable::HOST]}:{$target[ServersTable::PORT]}: {$client->errMsg}"
+            );
 
             $client->close();
 
@@ -190,15 +207,5 @@ class App
         $client->close();
 
         $this->logger->access($request->server);
-    }
-
-    public function getServersTable(): Table
-    {
-        return $this->serversTable;
-    }
-
-    public function getReportsTable(): Table
-    {
-        return $this->reportsTable;
     }
 }

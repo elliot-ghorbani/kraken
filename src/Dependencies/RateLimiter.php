@@ -39,4 +39,20 @@ class RateLimiter extends AbstrctDependency
 
         return true;
     }
+
+    public function cleanUp()
+    {
+        $configs = $this->app->getGlobalTable()->get(GlobalTable::GLOBAL_KEY);
+
+        $now = time();
+        $windowSize = $configs[GlobalTable::RATE_LIMITER_DURATION];
+
+        foreach ($this->app->getRateLimiterTable() as $ip => $item) {
+            $elapsed = $now - $item[RateLimiterTable::WINDOW_START];
+
+            if ($elapsed > $windowSize) {
+                $this->app->getRateLimiterTable()->del($ip);
+            }
+        }
+    }
 }

@@ -31,5 +31,51 @@ Change the config.json file:
 - rate_limiter_count: Number of allowed requests | int
 - rate_limiter_duration: Number of seconds  | int
 
+Example:
+
+```
+{
+  "worker_num": 3,
+  "servers": [
+    {
+      "host": "server1",
+      "port": 80,
+      "ssl": false,
+      "weight": 10
+    },
+    {
+      "host": "server2",
+      "port": 80,
+      "ssl": false,
+      "weight": 3
+    },
+    {
+      "host": "server3",
+      "port": 80,
+      "health_check_path": "/health",
+      "ssl": false,
+      "weight": 1
+    },
+    {
+      "host": "server4",
+      "port": 80,
+      "ssl": false,
+      "weight": 1
+    }
+  ],
+  "rate_limiter_count": 5,
+  "rate_limiter_duration": 60,
+  "strategy": "round_robin",
+  "access_log": {
+    "path": "/tmp/php_lb_access.log",
+    "format": "$remote_addr - $host \"$request_method $request_uri\" $status $request_time \"$http_user_agent\""
+  },
+  "error_log": {
+    "path": "/tmp/php_lb_error.log",
+    "format": "[$time_local] [error] $message"
+  }
+}
+```
+
 ## License
 [MIT license](https://opensource.org/licenses/MIT)
